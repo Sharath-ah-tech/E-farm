@@ -1,331 +1,563 @@
 import { useState, useEffect } from "react";
-import { addProducts, getProducts, applyDiscount } from "../api/product";
 import { useNavigate } from "react-router-dom";
 import { getTheme } from "../utils/theme";
 import { getMediaUrl } from "../utils/media";
 import { addNotification } from "../utils/notification";
-function Audited() {
+import {
+  addProduct,
+  addListing,
+  applyDiscount,
+  getProducts,
+  getAllProducts,
+} from "../api/product";
+
+const UNITS = [
+  { value: "kg", label: "Kilogram (kg)" },
+  { value: "g", label: "Gram (g)" },
+  { value: "piece", label: "Piece" },
+  { value: "litre", label: "Litre" },
+  { value: "ml", label: "Millilitre (ml)" },
+];
+
+const CATEGORIES = [
+  "Vegetables", "Fruits", "Tools", "Seeds", "Pesticide", "Greens",
+];
+
+const inputCls =
+  "w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 " +
+  "text-gray-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 " +
+  "rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-emerald-400 text-sm";
+
+function AddItem() {
   const navigate = useNavigate();
   const theme = getTheme();
-
-  const role =
-    localStorage.getItem("role")?.toLowerCase() || "customer";
+  const role = localStorage.getItem("role")?.toLowerCase() || "customer";
 
   const [activeTab, setActiveTab] = useState("product");
 
-  // Product Form
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [price, setPrice] = useState("");
-  const [stock, setStock] = useState("");
-  const [unit, setUnit] = useState("kg");
-  const [image, setImage] = useState(null);
-  const [category, setCategory] = useState('Vegetables')
+  // ── Tab 1: Add Product ────────────────────────────────────────────────────
+  const [pName, setPName] = useState("");
+  const [pCategory, setPCategory] = useState("Vegetables");
+  const [pImage, setPImage] = useState(null);
+  const [pLoading, setPLoading] = useState(false);
+  const [pError, setPError] = useState("");
+  const [pSuccess, setPSuccess] = useState("");
 
-  // Products
-  const [products, setProducts] = useState([]);
+  // ── Tab 2: Add Listing ────────────────────────────────────────────────────
+  const [allProducts, setAllProducts] = useState([]);
+  const [lProduct, setLProduct] = useState("");
+  const [lPrice, setLPrice] = useState("");
+  const [lStock, setLStock] = useState("");
+  const [lUnit, setLUnit] = useState("kg");
+  const [lDescription, setLDescription] = useState("");
+  const [lLoading, setLLoading] = useState(false);
+  const [lError, setLError] = useState("");
+  const [lSuccess, setLSuccess] = useState("");
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  // ── Tab 3: Listing Discount ───────────────────────────────────────────────
+  const [myListings, setMyListings] = useState([]);
+  const [dLoading, setDLoading] = useState(false);
 
+  // Fetch all parent products for the listing dropdown
   useEffect(() => {
-    if (activeTab !== "discount") return;
-
-    let isMounted = true;
-
-    const loadProducts = async () => {
-      try {
-        const response = await getProducts();
-
-        if (isMounted) {
-          setProducts(response.data);
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-    loadProducts();
-
-    return () => {
-      isMounted = false;
-    };
+    if (activeTab === "listing" && allProducts.length === 0) {
+      getAllProducts()
+        .then((r) => setAllProducts(r.data))
+        .catch(console.error);
+    }
+    if (activeTab === "discount" && myListings.length === 0) {
+      getProducts()
+        .then((r) => setMyListings(r.data))
+        .catch(console.error);
+    }
   }, [activeTab]);
 
-  const handleSubmit = async (e) => {
+  // ── Handlers ──────────────────────────────────────────────────────────────
+
+  const handleAddProduct = async (e) => {
     e.preventDefault();
-
+    if (!pName.trim()) return;
+    setPLoading(true);
+    setPError("");
+    setPSuccess("");
     try {
-      setLoading(true);
-
-      const formData = new FormData();
-
-      formData.append("name", name);
-      formData.append("description", description);
-      formData.append("price", price);
-      formData.append("stock", stock);
-      formData.append("units", unit);
-      formData.append("category", category);
-
-      if (image) {
-        formData.append("image", image);
-      }
-
-      await addProducts(formData);
-
-      addNotification(`🟢 New ${category} product "${name}" added`);
-
-      setName("");
-      setDescription("");
-      setPrice("");
-      setStock("");
-      setUnit("kg");
-      setImage(null);
-
-      navigate("/home");
+      const fd = new FormData();
+      fd.append("name", pName);
+      fd.append("category", pCategory);
+      if (pImage) fd.append("image", pImage);
+      await addProduct(fd);
+      addNotification(
+        `✅ Product "${pName}" created`,
+        `Parent product added to the ${pCategory} category.`
+      );
+      setPSuccess(`Product "${pName}" created! Now add a listing for it.`);
+      setPName("");
+      setPCategory("Vegetables");
+      setPImage(null);
+      // Also refresh allProducts for listing tab
+      setAllProducts([]);
     } catch (err) {
-      console.error(err);
-      setError("Failed to add product");
+      setPError(err.response?.data?.name?.[0] || "Failed to create product.");
     } finally {
-      setLoading(false);
+      setPLoading(false);
     }
   };
 
-const handleDiscount = async (productId, discount) => {
-  try {
-    await applyDiscount(productId, {
-      discount,
-    });
+  const handleAddListing = async (e) => {
+    e.preventDefault();
+    if (!lProduct || !lPrice || !lStock) {
+      setLError("Please fill in all required fields.");
+      return;
+    }
+    setLLoading(true);
+    setLError("");
+    setLSuccess("");
+    try {
+      await addListing({
+        product: Number(lProduct),
+        price: lPrice,
+        stock: lStock,
+        units: lUnit,
+        description: lDescription,
+      });
+      const prod = allProducts.find((p) => String(p.id) === String(lProduct));
+      addNotification(
+        `📦 Listing created for "${prod?.name}"`,
+        `Price ₹${lPrice}, Stock: ${lStock} ${lUnit}`
+      );
+      setLSuccess(`Listing created successfully for ${prod?.name}!`);
+      setLPrice("");
+      setLStock("");
+      setLDescription("");
+    } catch (err) {
+      const detail = err.response?.data;
+      if (detail?.non_field_errors) {
+        setLError("You already have a listing for this product. Edit it from your profile.");
+      } else {
+        setLError("Failed to create listing. Check the fields and try again.");
+      }
+    } finally {
+      setLLoading(false);
+    }
+  };
 
-    const product = products.find(
-      (p) => p.id === productId
-    );
+  const handleDiscount = async (listingId, discount, listingName) => {
+    try {
+      await applyDiscount(listingId, { discount });
+      addNotification(
+        `🏷️ ${discount}% discount applied to "${listingName}"`,
+        "Customers will see the discounted price."
+      );
+    } catch (err) {
+      console.error(err);
+      addNotification("❌ Failed to apply discount");
+    }
+  };
 
-    addNotification(
-      `🏷️ ${discount}% discount applied to "${product?.name}"`
-    );
-
-    navigate("/home");
-  } catch (err) {
-    console.error(err);
-
-    addNotification(
-      `🔴 Failed to apply discount`
-    );
-  }
-};
+  const TABS = [
+    { key: "product", label: "Add Product", icon: "add_circle" },
+    { key: "listing", label: "Add Listing", icon: "inventory_2" },
+    { key: "discount", label: "Listing Discount", icon: "local_offer" },
+  ];
 
   return (
     <div className={`min-h-screen ${theme.page}`}>
-      <div className="max-w-7xl mx-auto py-8 px-4">
-        <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl p-8">
+      <div className="max-w-3xl mx-auto py-6 px-4">
+        <div
+          className={`${theme.card} rounded-3xl shadow-xl border ${theme.border} overflow-hidden`}
+        >
           {/* Header */}
-          <div className="mb-8">
-            <h1 className={`text-3xl font-black ${theme.text}`}>
-              {role.charAt(0).toUpperCase() + role.slice(1)} Dashboard
+          <div className={`px-8 pt-8 pb-4`}>
+            <h1 className={`text-2xl font-black ${theme.text}`}>
+              Manage Products
             </h1>
-
-            <div className="flex gap-4 mt-6">
-              <button
-                type="button"
-                onClick={() => setActiveTab("product")}
-                className={`px-5 py-2 rounded-xl font-bold transition-all ${
-                  activeTab === "product"
-                    ? `${theme.primary} text-white shadow-lg`
-                    : "bg-slate-100 text-slate-700"
-                }`}
-              >
-                Add Product
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("discount")}
-                className={`px-5 py-2 rounded-xl font-bold transition-all ${
-                  activeTab === "discount"
-                    ? `${theme.primary} text-white shadow-lg`
-                    : "bg-slate-100 text-slate-700"
-                }`}
-              >
-                Discount Products
-              </button>
-            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Create products, add your listings, and manage discounts.
+            </p>
           </div>
 
-          {/* PRODUCT FORM */}
-          {activeTab === "product" && (
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {error && (
-                <div className="bg-red-100 border border-red-300 text-red-600 p-3 rounded-xl">
-                  {error}
-                </div>
-              )}
-
-              <input
-                type="text"
-                placeholder="Product Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-black dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl p-3"
-                required
-              />
-
-              <textarea
-                placeholder="Description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={4}
-                className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-black dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl p-3"
-              />
-
-              <input
-                type="number"
-                placeholder="Price"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-black dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl p-3"
-                required
-              />
-
-              <input
-                type="number"
-                placeholder="Stock"
-                value={stock}
-                onChange={(e) => setStock(e.target.value)}
-                className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-black dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl p-3"
-                required
-              />
-
-              <select
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-                className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-black dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl p-3"
-              >
-                <option value="kg">Kilogram</option>
-                <option value="g">Gram</option>
-                <option value="piece">Piece</option>
-                <option value="litre">Litre</option>
-                <option value="ml">Millilitre</option>
-              </select>
-              <select 
-                value = {category}
-                onChange={(e)=>setCategory(e.target.value)}
-                className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-black dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl p-3"
-              >
-                <option value='Vegetables'>Vegetables</option>
-                <option value='Fruits'>Fruits</option>
-                <option value='Tools'>Tools</option>
-                <option value='Seeds'>Seeds</option>
-                <option value='Pesticide'>Pesticide</option>
-                <option value='Greens'>Greens</option>
-              </select>
-              <input
-                type="file"
-                onChange={(e) => setImage(e.target.files[0])}
-                className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-black dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl p-3"
-              />
-
+          {/* Tabs */}
+          <div className="px-8 flex gap-2 border-b border-gray-100 dark:border-slate-800 pb-0">
+            {TABS.map((tab) => (
               <button
-                type="submit"
-                disabled={loading}
-                className={`w-full ${theme.primary} text-white py-3 rounded-xl font-bold`}
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-all -mb-px ${
+                  activeTab === tab.key
+                    ? `border-current ${theme.text}`
+                    : "border-transparent text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                }`}
               >
-                {loading ? "Adding..." : "Add Product"}
+                <span className="material-symbols-outlined text-base">
+                  {tab.icon}
+                </span>
+                {tab.label}
               </button>
-            </form>
-          )}
+            ))}
+          </div>
 
-          {/* DISCOUNT PRODUCTS */}
-          {activeTab === "discount" && (
-            <>
-              {products.length === 0 ? (
-                <div className="text-center py-20">
-                  <h2 className="text-3xl font-bold text-slate-500 dark:text-slate-300">
-                    No Products Available
-                  </h2>
+          <div className="px-8 py-6">
+            {/* ── Tab 1: Add Product ── */}
+            {activeTab === "product" && (
+              <div>
+                <div
+                  className={`mb-5 p-4 rounded-xl border ${theme.border} ${theme.secondary}`}
+                >
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <span className="font-bold">Step 1:</span> Create a parent
+                    product once (e.g., "Tomato"). Multiple sellers can then add
+                    their own listing for the same product.
+                  </p>
                 </div>
-              ) : (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {products.map((product) => (
-                    <DiscountCard
-                      key={product.id}
-                      product={product}
-                      onApplyDiscount={handleDiscount}
-                      theme={theme}
+
+                {pError && (
+                  <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm rounded-xl">
+                    {pError}
+                  </div>
+                )}
+                {pSuccess && (
+                  <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 text-sm rounded-xl">
+                    {pSuccess}
+                  </div>
+                )}
+
+                <form onSubmit={handleAddProduct} className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide block mb-1">
+                      Product Name *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Tomato, Wheat Seeds, Garden Spade…"
+                      value={pName}
+                      onChange={(e) => setPName(e.target.value)}
+                      className={inputCls}
+                      required
                     />
-                  ))}
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide block mb-1">
+                      Category *
+                    </label>
+                    <select
+                      value={pCategory}
+                      onChange={(e) => setPCategory(e.target.value)}
+                      className={inputCls}
+                    >
+                      {CATEGORIES.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide block mb-1">
+                      Product Image
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setPImage(e.target.files[0])}
+                      className={inputCls}
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={pLoading}
+                    className={`w-full ${theme.primary} text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:shadow-lg active:scale-[0.98] disabled:opacity-60`}
+                  >
+                    {pLoading ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Creating…
+                      </>
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-lg">
+                          add_circle
+                        </span>
+                        Create Product
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* ── Tab 2: Add Listing ── */}
+            {activeTab === "listing" && (
+              <div>
+                <div
+                  className={`mb-5 p-4 rounded-xl border ${theme.border} ${theme.secondary}`}
+                >
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <span className="font-bold">Step 2:</span> Choose an
+                    existing product and add YOUR listing with your own price,
+                    stock, and unit. Customers will see all sellers for the same
+                    product and can choose who to buy from.
+                  </p>
                 </div>
-              )}
-            </>
-          )}
+
+                {lError && (
+                  <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm rounded-xl">
+                    {lError}
+                  </div>
+                )}
+                {lSuccess && (
+                  <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 text-sm rounded-xl">
+                    {lSuccess}
+                  </div>
+                )}
+
+                {allProducts.length === 0 ? (
+                  <div className="text-center py-10">
+                    <span className="material-symbols-outlined text-4xl text-gray-300 block mb-2">
+                      inventory_2
+                    </span>
+                    <p className="text-gray-500 text-sm">
+                      No products found. Create a product first.
+                    </p>
+                    <button
+                      onClick={() => setActiveTab("product")}
+                      className={`mt-3 px-5 py-2 rounded-xl text-sm font-bold text-white ${theme.primary}`}
+                    >
+                      Go to Add Product
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleAddListing} className="space-y-4">
+                    <div>
+                      <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide block mb-1">
+                        Select Product *
+                      </label>
+                      <select
+                        value={lProduct}
+                        onChange={(e) => setLProduct(e.target.value)}
+                        className={inputCls}
+                        required
+                      >
+                        <option value="">— Choose a product —</option>
+                        {allProducts.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} ({p.category})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide block mb-1">
+                          Price (₹) *
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="e.g. 50.00"
+                          value={lPrice}
+                          onChange={(e) => setLPrice(e.target.value)}
+                          className={inputCls}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide block mb-1">
+                          Stock *
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="e.g. 100"
+                          value={lStock}
+                          onChange={(e) => setLStock(e.target.value)}
+                          className={inputCls}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide block mb-1">
+                        Unit *
+                      </label>
+                      <select
+                        value={lUnit}
+                        onChange={(e) => setLUnit(e.target.value)}
+                        className={inputCls}
+                      >
+                        {UNITS.map((u) => (
+                          <option key={u.value} value={u.value}>
+                            {u.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide block mb-1">
+                        Description
+                      </label>
+                      <textarea
+                        rows={3}
+                        placeholder="Describe your product quality, harvesting method, freshness…"
+                        value={lDescription}
+                        onChange={(e) => setLDescription(e.target.value)}
+                        className={`${inputCls} resize-none`}
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={lLoading}
+                      className={`w-full ${theme.primary} text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:shadow-lg active:scale-[0.98] disabled:opacity-60`}
+                    >
+                      {lLoading ? (
+                        <>
+                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Creating Listing…
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined text-lg">
+                            inventory_2
+                          </span>
+                          Add My Listing
+                        </>
+                      )}
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
+
+            {/* ── Tab 3: Listing Discount ── */}
+            {activeTab === "discount" && (
+              <div>
+                <div
+                  className={`mb-5 p-4 rounded-xl border ${theme.border} ${theme.secondary}`}
+                >
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Apply percentage discounts to your listings. Discounts are
+                    shown to all customers and trigger notifications.
+                  </p>
+                </div>
+
+                {myListings.length === 0 ? (
+                  <div className="text-center py-10">
+                    <span className="material-symbols-outlined text-4xl text-gray-300 block mb-2">
+                      local_offer
+                    </span>
+                    <p className="text-gray-500 text-sm">
+                      You have no listings yet.
+                    </p>
+                    <button
+                      onClick={() => setActiveTab("listing")}
+                      className={`mt-3 px-5 py-2 rounded-xl text-sm font-bold text-white ${theme.primary}`}
+                    >
+                      Add a Listing
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid gap-4">
+                    {myListings.map((listing) => (
+                      <DiscountCard
+                        key={listing.id}
+                        listing={listing}
+                        theme={theme}
+                        onApply={handleDiscount}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function DiscountCard({ product, onApplyDiscount, theme }) {
+function DiscountCard({ listing, theme, onApply }) {
   const [discount, setDiscount] = useState("");
+  const [applying, setApplying] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const handleApply = async () => {
+    const d = parseInt(discount, 10);
+    if (isNaN(d) || d < 0 || d > 100) return;
+    setApplying(true);
+    try {
+      await onApply(listing.id, d, listing.product_name);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 2500);
+    } finally {
+      setApplying(false);
+    }
+  };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border dark:border-slate-700 shadow-lg overflow-hidden">
+    <div
+      className={`flex flex-col sm:flex-row gap-4 p-4 rounded-2xl border ${theme.border} ${theme.card} shadow-sm`}
+    >
       <img
-        src={getMediaUrl(product.image)}
-        alt={product.name}
-        className="w-full h-48 object-cover"
+        src={listing.product_image || "/vite.svg"}
+        alt={listing.product_name}
+        className="w-16 h-16 rounded-xl object-contain bg-gray-50 dark:bg-slate-800 flex-shrink-0"
         onError={(e) => {
-          e.currentTarget.src = "/vite.svg";
+          e.target.src = "/vite.svg";
         }}
       />
 
-      <div className="p-5">
-        <h3 className={`text-xl font-bold ${theme.text}`}>
-          {product.name}
-        </h3>
-
-        <p className="text-slate-500 dark:text-slate-300 mt-2">
-          {product.description}
+      <div className="flex-1 min-w-0">
+        <p className="font-bold text-gray-900 dark:text-white truncate">
+          {listing.product_name}
+        </p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          ₹{listing.price} / {listing.units} · Stock: {listing.stock}
         </p>
 
-        <div className="mt-4 space-y-1">
-          <p>
-            <strong>Price:</strong> ₹{product.price}
-          </p>
-
-          <p>
-            <strong>Stock:</strong> {product.stock}
-          </p>
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
+          <input
+            type="number"
+            min="0"
+            max="100"
+            placeholder="% discount"
+            value={discount}
+            onChange={(e) => setDiscount(e.target.value)}
+            className="w-28 rounded-xl px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
+          />
+          <button
+            onClick={handleApply}
+            disabled={applying || !discount}
+            className={`px-4 py-2 rounded-xl text-sm font-bold text-white transition-all active:scale-[0.98] disabled:opacity-60 ${
+              success
+                ? "bg-green-500"
+                : `${theme.primary} hover:shadow-md`
+            }`}
+          >
+            {applying ? (
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
+            ) : success ? (
+              "✓ Applied!"
+            ) : (
+              "Apply"
+            )}
+          </button>
+          {listing.stock === 0 && (
+            <span className="text-xs text-red-500 font-semibold">
+              Out of Stock
+            </span>
+          )}
         </div>
-
-        {product.stock > 0 ? (
-          <>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              placeholder="Discount %"
-              value={discount}
-              onChange={(e) => setDiscount(e.target.value)}
-              className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-black dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl p-3"
-            />
-
-            <button
-              onClick={() =>
-                onApplyDiscount(product.id, discount)
-              }
-              className={`w-full mt-3 ${theme.primary} text-white py-2 rounded-lg font-bold`}
-            >
-              Apply Discount
-            </button>
-          </>
-        ) : (
-          <div className="mt-4 text-red-500 font-bold">
-            Out Of Stock
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
-export default Audited;
+export default AddItem;

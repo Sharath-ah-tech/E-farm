@@ -1,12 +1,13 @@
-import api from './axios'
+import api from "./axios";
 
-export const getWishlist = () =>
-  api.get("wishlist/");
+const normalize = (r) => ({
+  ...r,
+  data: Array.isArray(r.data) ? r.data : r.data?.results || [],
+});
+
+export const getWishlist = () => api.get("wishlist/").then(normalize);
 
 export const addWishlist = (productId) =>
-  api.post("wishlist/", {
-    product: productId
-  });
+  api.post("wishlist/", { product: productId });
 
-export const removeWishlist = (wishlistId) =>
-  api.delete(`wishlist/${wishlistId}/`);
+export const removeWishlist = (id) => api.delete(`wishlist/${id}/`);

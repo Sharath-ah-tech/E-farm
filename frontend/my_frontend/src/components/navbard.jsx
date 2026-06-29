@@ -3,14 +3,25 @@ import { getTheme } from "../utils/theme";
 
 function Navbard() {
   const theme = getTheme();
+  const role = localStorage.getItem("role")?.toLowerCase() || "customer";
+  const isSeller = role === "farmer" || role === "wholesaler";
 
-  const navItems = [
-    { path: "/home", icon: "home", label: "Home" },
-    { path: "/cart", icon: "shopping_cart", label: "Cart" },
-    { path: "/additem", icon: "add_box", label: "Add" },
-    { path: "/orders", icon: "receipt_long", label: "Orders" },
-    { path: "/track", icon: "location_on", label: "Track" },
-  ];
+  // Role-based nav items
+  const navItems = isSeller
+    ? [
+        { path: "/home",    icon: "home",           label: "Home"    },
+        { path: "/cart",    icon: "shopping_cart",  label: "Cart"    },
+        { path: "/additem", icon: "add_box",         label: "Add"     },
+        { path: "/orders",  icon: "receipt_long",   label: "Orders"  },
+        { path: "/track",   icon: "local_shipping", label: "Track"   },
+      ]
+    : [
+        { path: "/home",      icon: "home",          label: "Home"     },
+        { path: "/favorite",  icon: "favorite",      label: "Wishlist" },
+        { path: "/cart",      icon: "shopping_cart", label: "Cart"     },
+        { path: "/orders",    icon: "receipt_long",  label: "Orders"   },
+        { path: "/track",     icon: "local_shipping",label: "Track"    },
+      ];
 
   return (
     <footer
@@ -23,27 +34,35 @@ function Navbard() {
         backdrop-blur-md
       `}
     >
-      <nav className="max-w-7xl mx-auto">
-        <ul className="flex justify-around items-center py-3">
+      <nav className="max-w-7xl mx-auto safe-bottom">
+        <ul className="flex justify-around items-center py-2 px-2">
           {navItems.map((item) => (
-            <li key={item.path}>
+            <li key={item.path} className="flex-1">
               <NavLink
                 to={item.path}
                 className={({ isActive }) =>
-                  `flex flex-col items-center gap-1 transition-all duration-300 ${
+                  `flex flex-col items-center gap-0.5 py-2 px-1 rounded-xl transition-all duration-200 ${
                     isActive
-                      ? `${theme.icons} ${theme.default} scale-110`
-                      : "text-gray-500 dark:text-gray-400 hover:scale-105 hover:text-emerald-500"
+                      ? `${theme.text} ${theme.secondary}`
+                      : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                   }`
                 }
               >
-                <span className="material-symbols-outlined text-3xl">
-                  {item.icon}
-                </span>
-
-                <span className="text-xs font-medium">
-                  {item.label}
-                </span>
+                {({ isActive }) => (
+                  <>
+                    <span
+                      className={`material-symbols-outlined text-2xl transition-transform duration-200 ${
+                        isActive ? "scale-110" : ""
+                      }`}
+                      style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}
+                    >
+                      {item.icon}
+                    </span>
+                    <span className="text-[10px] font-semibold leading-none">
+                      {item.label}
+                    </span>
+                  </>
+                )}
               </NavLink>
             </li>
           ))}
