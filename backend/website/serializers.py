@@ -271,30 +271,21 @@ class DiscountSerializer(ModelSerializer):
         fields = "__all__"
 
 
-class WishlistSerializer(ModelSerializer):
-    product_name       = serializers.CharField(source="product.name",     read_only=True)
-    product_category   = serializers.CharField(source="product.category", read_only=True)
-    product_image      = serializers.SerializerMethodField()
-    lowest_price       = serializers.ReadOnlyField(source="product.lowest_price")
-    average_rating     = serializers.ReadOnlyField(source="product.average_rating")
-    seller_count       = serializers.ReadOnlyField(source="product.seller_count")
-    has_stock          = serializers.ReadOnlyField(source="product.has_stock")
-    cheapest_listing_id= serializers.SerializerMethodField()
-
+class WishlistSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source="listing.product.name",read_only=True,)
+    product_category = serializers.CharField(source="listing.product.category",read_only=True,)
+    product_image = serializers.SerializerMethodField()
+    listing_price = serializers.DecimalField(source="listing.price",max_digits=10,decimal_places=2,read_only=True,)
+    seller_name = serializers.CharField(source="listing.seller.username",read_only=True,)
     class Meta:
-        model  = Wishlist
+        model = Wishlist
         fields = "__all__"
         read_only_fields = ["user"]
-
     def get_product_image(self, obj):
-        req = self.context.get("request")
-        if obj.product.image and req:
-            return req.build_absolute_uri(obj.product.image.url)
+        request = self.context.get("request")
+        if (obj.listing and obj.listing.product.image and request):
+            return request.build_absolute_uri(obj.listing.product.image.url)
         return None
-
-    def get_cheapest_listing_id(self, obj):
-        listing = obj.product.listings.filter(stock__gt=0).order_by("price").first()
-        return listing.id if listing else None
 
 
 class ReviewSerializer(ModelSerializer):

@@ -1,9 +1,7 @@
-import { memo, useState, useCallback } from "react";
+import { memo } from "react";
 import { Link } from "react-router-dom";
 import { getMediaUrl } from "../utils/media";
 import { getTheme } from "../utils/theme";
-import { useWishlist } from "../contexts/WishlistContext";
-import { useToast } from "../utils/toast";
 
 function StarRow({ rating, size = "text-sm" }) {
   const filled = Math.round(Number(rating) || 0);
@@ -23,16 +21,10 @@ function StarRow({ rating, size = "text-sm" }) {
   );
 }
 
-// Days since product was created (used for "New" badge — approximated via id recency)
 const NEW_THRESHOLD_DAYS = 14;
 
 function ProductCardInner({ product }) {
   const theme = getTheme();
-  const toast = useToast();
-  const { isWishlisted, toggleWishlist } = useWishlist();
-  const [wlBusy, setWlBusy] = useState(false);
-
-  const wishlisted = isWishlisted(product.id);
 
   const inStock =
     product.has_stock === true ||
@@ -44,28 +36,6 @@ function ProductCardInner({ product }) {
   const isNew = product.created_at
     ? (Date.now() - new Date(product.created_at).getTime()) / 86400000 <= NEW_THRESHOLD_DAYS
     : false;
-
-  const handleWishlist = useCallback(
-    async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (wlBusy) return;
-      setWlBusy(true);
-      const willBeWishlisted = !wishlisted;
-      const ok = await toggleWishlist(product.id);
-      setWlBusy(false);
-      if (ok) {
-        toast.show(
-          willBeWishlisted ? "Added to wishlist" : "Removed from wishlist",
-          "success",
-          1800
-        );
-      } else {
-        toast.show("Could not update wishlist. Try again.", "error");
-      }
-    },
-    [wlBusy, wishlisted, toggleWishlist, product.id, toast]
-  );
 
   return (
     <div className="group relative bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-300 flex flex-col">
@@ -79,7 +49,6 @@ function ProductCardInner({ product }) {
           onError={(e) => { e.target.src = "/vite.svg"; }}
         />
 
-        {/* Badges — priority: out of stock > low stock > best seller > new */}
         <div className="absolute top-2 left-2 flex flex-col gap-1">
           {!inStock && (
             <span className="px-2 py-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full shadow">
@@ -102,22 +71,6 @@ function ProductCardInner({ product }) {
             </span>
           )}
         </div>
-
-        {/* Wishlist button — driven entirely by context */}
-        <button
-          onClick={handleWishlist}
-          disabled={wlBusy}
-          aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
-          className={`absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center shadow-md transition-all duration-200 active:scale-90 ${
-            wishlisted
-              ? "bg-red-500 text-white"
-              : "bg-white dark:bg-slate-700 text-gray-300 hover:text-red-400"
-          }`}
-        >
-          <span className="material-symbols-outlined text-lg leading-none">
-            {wishlisted ? "favorite" : "favorite_border"}
-          </span>
-        </button>
 
         {inStock && (
           <div className="absolute bottom-2 left-2">
@@ -146,7 +99,6 @@ function ProductCardInner({ product }) {
           </span>
         </div>
 
-        {/* Price (already discounted via Product.lowest_price → final_price) */}
         <div className="mt-1.5">
           <span className="text-base font-bold text-gray-900 dark:text-white">
             ₹{product.lowest_price}
@@ -180,7 +132,6 @@ function ProductCardInner({ product }) {
   );
 }
 
-// ── Memoized export — re-renders only when product data or its id changes ──────
 const ProductCard = memo(ProductCardInner, (prev, next) => {
   return (
     prev.product.id === next.product.id &&

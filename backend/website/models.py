@@ -238,15 +238,13 @@ class Discount(models.Model):
 
 
 class Wishlist(models.Model):
-    user       = models.ForeignKey(User, on_delete=models.CASCADE, related_name='wishlist')
-    product    = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='wishlisted_by')
+    user = models.ForeignKey(User,on_delete=models.CASCADE,related_name="wishlist",)
+    listing = models.ForeignKey(ProductList,on_delete=models.CASCADE,related_name="wishlisted_by",null = True, blank = True)
     created_at = models.DateTimeField(auto_now_add=True)
-
     class Meta:
-        unique_together = ('user', 'product')
-
+        unique_together = ("user", "listing")
     def __str__(self):
-        return self.product.name
+        return self.listing.product.name
 
 
 class Review(models.Model):

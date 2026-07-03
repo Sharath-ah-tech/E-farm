@@ -83,6 +83,15 @@ function Checkout() {
     postal_code: "", phone: "", country: "India",
   });
 
+  const [upiId, setUpiId] = useState("");
+const [upiError, setUpiError] = useState("");
+
+const UPI_REGEX = /^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/;
+
+const validateUpi = (value) => {
+  if (!value) return true; // optional — blank means "let user pick in Razorpay's modal"
+  return UPI_REGEX.test(value.trim());
+};
   const theme    = getTheme();
   const navigate = useNavigate();
   const toast    = useToast();
@@ -144,6 +153,13 @@ function Checkout() {
   // ── Razorpay flow ─────────────────────────────────────────────────────────────
   const handleRazorpay = async () => {
   if (!validateForm()) return;
+
+  // Validate UPI ID before opening Razorpay
+  if (upiId && !validateUpi(upiId)) {
+    setUpiError("Enter a valid UPI ID, e.g. name@bank");
+    return;
+  }
+
   setPlacing(true);
   setError("");
 
@@ -159,18 +175,25 @@ function Checkout() {
     try {
       orderRes = await createRazorpayOrder();
     } catch (createErr) {
-      // ← Surfaces backend's clear "keys not configured / auth failed" message
       const msg =
         createErr.response?.data?.error ||
         "Could not initiate payment. The payment gateway may be misconfigured.";
+
       setError(msg);
       setPlacing(false);
       return;
     }
 
     const {
-      razorpay_order_id, amount, currency, key,
-      name, description, prefill_name, prefill_email, prefill_contact,
+      razorpay_order_id,
+      amount,
+      currency,
+      key,
+      name,
+      description,
+      prefill_name,
+      prefill_email,
+      prefill_contact,
     } = orderRes.data;
 
     if (!key || !razorpay_order_id) {
@@ -180,36 +203,72 @@ function Checkout() {
     }
 
     const options = {
-      key,                 // ← always fresh from backend response, never cached
+      key,
       amount,
       currency,
       name,
       description,
       order_id: razorpay_order_id,
-      theme: { color: "#059669" },
-      prefill: {
-        name:    prefill_name  || username,
-        email:   prefill_email || "",
-        contact: form.phone    || prefill_contact || "",
+
+      theme: {
+        color: "#059669",
       },
-      notes: { address: form.address, city: form.city, state: form.state },
+
+      prefill: {
+        name: prefill_name || username,
+        email: prefill_email || "",
+        contact: form.phone || prefill_contact || "",
+
+        // Prefill UPI ID if user entered one
+        ...(upiId ? { vpa: upiId.trim() } : {}),
+      },
+
+      // Explicitly enable UPI Collect + QR + Intent
+      config: {
+        display: {
+          blocks: {
+            upi: {
+              name: "Pay via UPI",
+              instruments: [
+                {
+                  method: "upi",
+                  flows: ["collect", "qr", "intent"],
+                },
+              ],
+            },
+          },
+
+          sequence: ["block.upi"],
+
+          preferences: {
+            show_default_blocks: true,
+          },
+        },
+      },
+
+      notes: {
+        address: form.address,
+        city: form.city,
+        state: form.state,
+      },
 
       handler: async (response) => {
         try {
           const verifyRes = await verifyRazorpayPayment({
-            razorpay_order_id:   response.razorpay_order_id,
+            razorpay_order_id: response.razorpay_order_id,
             razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_signature:  response.razorpay_signature,
-            shipping_address:    form,
+            razorpay_signature: response.razorpay_signature,
+            shipping_address: form,
           });
+
           toast.show("Payment successful! Order confirmed.", "success");
           navigate(`/orders/${verifyRes.data.order_id}?success=1`);
         } catch (verErr) {
           setError(
             verErr.response?.data?.error ||
-            "Payment was processed but verification failed. " +
-            "Contact support with your payment ID if you were charged."
+              "Payment was processed but verification failed. Contact support with your payment ID if you were charged."
           );
+
           setPlacing(false);
         }
       },
@@ -224,29 +283,31 @@ function Checkout() {
 
     const rzp = new window.Razorpay(options);
 
-    // ← Surfaces Razorpay's own failure reason (e.g. card declined, auth failed)
     rzp.on("payment.failed", async (response) => {
       const desc = response.error?.description || "Payment failed";
       const reason = response.error?.reason || "";
+
       await reportRazorpayFailed({
         error_description: desc,
         razorpay_order_id,
       }).catch(() => {});
+
       setError(
         reason === "international_transaction_not_allowed"
           ? "International cards are not supported. Please use an Indian payment method."
           : `Payment failed: ${desc}. Please try again or use a different method.`
       );
+
       setPlacing(false);
     });
 
     rzp.open();
-
   } catch (err) {
     setError(
       err.response?.data?.error ||
-      "Could not initiate payment. Please try again or use Cash on Delivery."
+        "Could not initiate payment. Please try again or use Cash on Delivery."
     );
+
     setPlacing(false);
   }
 };
@@ -348,20 +409,33 @@ function Checkout() {
               </div>
 
               {paymentType === "razorpay" && (
-                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
-                  <div className="flex items-center gap-2 flex-wrap text-xs text-blue-700 dark:text-blue-400 font-medium">
-                    <span className="material-symbols-outlined text-sm">security</span>
-                    Secured by Razorpay · 100% Safe & Encrypted
-                    <span className="ml-auto flex items-center gap-1 flex-wrap">
-                      {["UPI","Visa","Mastercard","BHIM","PhonePe"].map((m) => (
-                        <span key={m} className="px-2 py-0.5 bg-white dark:bg-slate-800 rounded text-xs border border-blue-200 dark:border-blue-700">
-                          {m}
-                        </span>
-                      ))}
-                    </span>
-                  </div>
-                </div>
-              )}
+  <div className="mt-3">
+    <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1 block">
+      Pay via UPI ID (optional)
+    </label>
+    <input
+      type="text"
+      value={upiId}
+      onChange={(e) => {
+        setUpiId(e.target.value);
+        setUpiError("");
+      }}
+      onBlur={() => {
+        if (upiId && !validateUpi(upiId)) {
+          setUpiError("Enter a valid UPI ID, e.g. name@bank");
+        }
+      }}
+      placeholder="yourname@bank"
+      className={inputCls(theme)}
+    />
+    {upiError && (
+      <p className="text-xs text-red-500 mt-1">{upiError}</p>
+    )}
+    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+      Leave blank to choose UPI apps or scan a QR code inside the payment window.
+    </p>
+  </div>
+)}
             </div>
 
             {/* Error */}

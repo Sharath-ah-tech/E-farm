@@ -24,7 +24,7 @@ function ProfileSetup() {
   // OAuth detection
   const [isOauth,   setIsOauth]   = useState(false);
   const [steps,     setSteps]     = useState(BASE_STEPS);
-
+  const [roleLocked, setRoleLocked] = useState(false);
   const [step,         setStep]         = useState(1);
   const [phone,        setPhone]        = useState("");
   const [address,      setAddress]      = useState("");
@@ -43,16 +43,16 @@ function ProfileSetup() {
 
   useEffect(() => {
     // Check if OAuth user
-    getUserInfo()
-      .then((res) => {
-        const oauth = res.data.is_oauth;
-        setIsOauth(oauth);
-        // Only show role step if OAuth user (email users already picked during registration)
-        if (oauth) {
-          setSteps([...BASE_STEPS, { id: 4, label: "Role" }]);
-          setSelectedRole(res.data.role || "customer");
-        }
-      })
+    getUserInfo().then((res) => {
+    setIsOauth(res.data.is_oauth);
+    setRoleLocked(res.data.role_locked);
+
+    if (res.data.is_oauth && !res.data.role_locked) {
+        setSteps([...BASE_STEPS, { id: 4, label: "Role" }]);
+    } else {
+        setSteps(BASE_STEPS);
+    }
+})
       .catch(() => {});
   }, []);
 
@@ -100,10 +100,13 @@ function ProfileSetup() {
       });
 
       // For OAuth users, lock in their chosen role
-      if (isOauth) {
-        await api.post("/select-role/", { role: selectedRole });
-        localStorage.setItem("role", selectedRole);
-      }
+      if (isOauth && !roleLocked) {
+    await api.post("/select-role/", {
+        role: selectedRole,
+    });
+
+    localStorage.setItem("role", selectedRole);
+}
 
       navigate("/home");
     } catch (err) {

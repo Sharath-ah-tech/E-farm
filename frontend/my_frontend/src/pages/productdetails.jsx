@@ -4,6 +4,8 @@ import { getTheme } from "../utils/theme";
 import { getMediaUrl } from "../utils/media";
 import api from "../api/axios";
 import { getListings } from "../api/product";
+import { useWishlist } from "../contexts/WishlistContext";
+import { getPricing, formatINR } from "../utils/pricing";
 import {
   getProductReviews,
   addReview,
@@ -58,84 +60,63 @@ function StarPicker({ value, onChange }) {
 // ── Seller Card ───────────────────────────────────────────────────────────────
 
 function SellerCard({ listing, theme, onAddToCart, onBuyNow, adding, added }) {
-  const [wishlisted, setWishlisted] = useState(false);
   const navigate = useNavigate();
+  const { isWishlisted, toggleWishlist } = useWishlist();
+  const [wlBusy, setWlBusy] = useState(false);
   const inStock = listing.stock > 0;
+  console.log(listing.product)
+  // Per-product lookup — listing.product is THIS listing's product id only.
+  const wishlisted = isWishlisted(listing.product);
 
   const handleWishlist = async () => {
-    try {
-      await api.post("wishlist/", { product: listing.product });
-      setWishlisted((p) => !p);
-    } catch {
-      setWishlisted((p) => !p);
-    }
+    if (wlBusy) return;
+    setWlBusy(true);
+    await toggleWishlist(listing.product);
+    setWlBusy(false);
   };
 
+  const { original, final, pct, hasDiscount, saved } = getPricing(listing);
+
   return (
-    <div
-      className={`${theme.card} rounded-2xl border ${theme.border} shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col`}
-    >
-      {/* Seller header */}
+    <div className={`${theme.card} rounded-2xl border ${theme.border} shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col`}>
+      {/* Seller header — unchanged from before */}
       <div className={`px-5 pt-5 pb-4 ${theme.secondary}`}>
         <div className="flex items-start gap-3">
-          {/* Avatar */}
           {listing.seller_photo ? (
             <img
               src={listing.seller_photo}
               alt={listing.seller_name}
               className="w-12 h-12 rounded-full object-cover border-2 border-white dark:border-slate-700 shadow flex-shrink-0"
-              onError={(e) => {
-                e.target.style.display = "none";
-              }}
+              onError={(e) => { e.target.style.display = "none"; }}
             />
           ) : (
-            <div
-              className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white flex-shrink-0 shadow bg-gradient-to-br ${
-                listing.seller_role === "farmer"
-                  ? "from-emerald-500 to-teal-600"
-                  : "from-orange-500 to-amber-600"
-              }`}
-            >
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white flex-shrink-0 shadow bg-gradient-to-br ${
+              listing.seller_role === "farmer" ? "from-emerald-500 to-teal-600" : "from-orange-500 to-amber-600"
+            }`}>
               {listing.seller_name?.charAt(0).toUpperCase()}
             </div>
           )}
-
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <button
-                onClick={() => navigate(`/seller/${listing.seller}`)}
-                className={`font-bold text-sm ${theme.text} hover:underline truncate max-w-[140px]`}
-              >
+              <button onClick={() => navigate(`/seller/${listing.seller}`)} className={`font-bold text-sm ${theme.text} hover:underline truncate max-w-[140px]`}>
                 {listing.seller_name}
               </button>
               {listing.seller_business_name && (
                 <span className="flex items-center gap-0.5 px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full text-[10px] font-bold">
-                  <span className="material-symbols-outlined text-xs">
-                    verified
-                  </span>
-                  Verified
+                  <span className="material-symbols-outlined text-xs">verified</span>Verified
                 </span>
               )}
-              <span
-                className={`px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${theme.secondary} ${theme.text}`}
-              >
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${theme.secondary} ${theme.text}`}>
                 {listing.seller_role || "Seller"}
               </span>
             </div>
-
             {listing.seller_business_name && (
-              <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 truncate">
-                🏢 {listing.seller_business_name}
-              </p>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 truncate">🏢 {listing.seller_business_name}</p>
             )}
             {(listing.seller_district || listing.seller_state) && (
               <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5 flex items-center gap-0.5">
-                <span className="material-symbols-outlined text-xs">
-                  location_on
-                </span>
-                {[listing.seller_district, listing.seller_state]
-                  .filter(Boolean)
-                  .join(", ")}
+                <span className="material-symbols-outlined text-xs">location_on</span>
+                {[listing.seller_district, listing.seller_state].filter(Boolean).join(", ")}
               </p>
             )}
           </div>
@@ -144,59 +125,57 @@ function SellerCard({ listing, theme, onAddToCart, onBuyNow, adding, added }) {
 
       {/* Price & details */}
       <div className="px-5 py-4 flex-1 flex flex-col">
-        <div className="flex items-end justify-between mb-3">
+        <div className="flex items-end justify-between mb-1 flex-wrap gap-1">
           <div>
-            <span className="text-2xl font-bold text-gray-900 dark:text-white">
-              ₹{listing.price}
-            </span>
-            <span className="text-sm text-gray-400 dark:text-gray-500 ml-1">
-              / {listing.units}
-            </span>
+            {hasDiscount ? (
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span className="text-2xl font-bold text-gray-900 dark:text-white">{formatINR(final)}</span>
+                <span className="text-sm text-gray-400 dark:text-gray-500 line-through">{formatINR(original)}</span>
+                <span className="text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded-full">
+                  {pct}% OFF
+                </span>
+              </div>
+            ) : (
+              <span className="text-2xl font-bold text-gray-900 dark:text-white">{formatINR(original)}</span>
+            )}
+            <span className="text-sm text-gray-400 dark:text-gray-500 ml-1">/ {listing.units}</span>
           </div>
-          <span
-            className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-              inStock
-                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-            }`}
-          >
+          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+            inStock ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+          }`}>
             {inStock ? `${listing.stock} in stock` : "Out of Stock"}
           </span>
         </div>
+
+        {hasDiscount && (
+          <p className="text-xs font-semibold text-green-600 dark:text-green-400 mb-2">
+            You save {formatINR(saved)}
+          </p>
+        )}
 
         <div className="flex items-center gap-2 mb-2">
           <StarRow rating={listing.average_rating} size="text-sm" />
           <span className="text-xs text-gray-500 dark:text-gray-400">
             {Number(listing.average_rating || 0).toFixed(1)}
-            {listing.review_count > 0 &&
-              ` (${listing.review_count} review${
-                listing.review_count !== 1 ? "s" : ""
-              })`}
+            {listing.review_count > 0 && ` (${listing.review_count} review${listing.review_count !== 1 ? "s" : ""})`}
           </span>
         </div>
 
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 flex items-center gap-1">
-          <span className="material-symbols-outlined text-sm text-green-500">
-            local_shipping
-          </span>
+          <span className="material-symbols-outlined text-sm text-green-500">local_shipping</span>
           Free delivery · Expected 2–4 days
         </p>
 
         {listing.description && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 line-clamp-2 italic">
-            "{listing.description}"
-          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 line-clamp-2 italic">"{listing.description}"</p>
         )}
 
-        {/* Buttons */}
         <div className="flex gap-2 mt-auto">
           <button
             onClick={() => onBuyNow(listing.id)}
             disabled={!inStock}
             className={`flex-1 py-2.5 rounded-xl text-sm font-bold text-white transition-all active:scale-[0.97] ${
-              inStock
-                ? `${theme.primary} hover:shadow-md`
-                : "bg-gray-200 dark:bg-slate-700 text-gray-400 cursor-not-allowed"
+              inStock ? `${theme.primary} hover:shadow-md` : "bg-gray-200 dark:bg-slate-700 text-gray-400 cursor-not-allowed"
             }`}
           >
             Buy Now
@@ -215,34 +194,23 @@ function SellerCard({ listing, theme, onAddToCart, onBuyNow, adding, added }) {
           >
             {adding ? (
               <span className="flex items-center justify-center gap-1">
-                <span className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" />
-                Adding…
+                <span className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" />Adding…
               </span>
-            ) : added ? (
-              "✓ Added!"
-            ) : (
-              "Add to Cart"
-            )}
+            ) : added ? "✓ Added!" : "Add to Cart"}
           </button>
 
           <button
             onClick={handleWishlist}
+            disabled={wlBusy}
+            aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
             className={`w-11 h-11 rounded-xl flex items-center justify-center border transition-all active:scale-90 ${
-              wishlisted
-                ? "bg-red-500 text-white border-red-500"
-                : `${theme.secondary} ${theme.text} border-current hover:shadow`
+              wishlisted ? "bg-red-500 text-white border-red-500" : `${theme.secondary} ${theme.text} border-current hover:shadow`
             }`}
           >
-            <span className="material-symbols-outlined text-xl">
-              {wishlisted ? "favorite" : "favorite_border"}
-            </span>
+            <span className="material-symbols-outlined text-xl">{wishlisted ? "favorite" : "favorite_border"}</span>
           </button>
 
-          <button
-            disabled
-            title="Chat coming soon"
-            className="w-11 h-11 rounded-xl flex items-center justify-center border border-gray-200 dark:border-slate-700 text-gray-300 dark:text-slate-600 cursor-not-allowed"
-          >
+          <button disabled title="Chat coming soon" className="w-11 h-11 rounded-xl flex items-center justify-center border border-gray-200 dark:border-slate-700 text-gray-300 dark:text-slate-600 cursor-not-allowed">
             <span className="material-symbols-outlined text-xl">chat</span>
           </button>
         </div>

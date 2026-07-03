@@ -119,13 +119,16 @@ class SelectedView(APIView):
 
     def post(self, request):
         profile = request.user.profile
+
         if profile.role_locked:
-            return Response({"error": "Role already selected"}, status=400)
+            return Response({"error": "Role already selected."},status=400,)
         role = request.data.get("role")
+        if role not in ["customer", "farmer", "wholesaler"]:
+            return Response({"error": "Invalid role."},status=400,)
         profile.role = role
         profile.role_locked = True
         profile.save()
-        return Response({"message": "Role selected successfully"})
+        return Response({"message": "Role selected successfully.","role": role,})
 
 
 # ── Products ──────────────────────────────────────────────────────────────────
@@ -321,11 +324,7 @@ class WishlistViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Wishlist.objects.filter(
-            user=self.request.user
-        ).select_related("product").prefetch_related(
-            "product__listings"
-        ).order_by("-created_at")
+        return (Wishlist.objects.filter(user=self.request.user).select_related("listing","listing__product","listing__seller",).order_by("-created_at"))
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -1430,43 +1429,80 @@ class SellerManageOrderView(APIView):
 
     def patch(self, request, order_id):
         if not OrderItem.objects.filter(
-            order_id=order_id, listing__seller=request.user
-        ).exists():
+            order_id=order_id,
+        listing__seller=request.user,
+    ).exists():
             return Response({"error": "Order not found"}, status=403)
 
         new_status = request.data.get("status", "").strip()
-        valid = ["processing", "packed", "shipped", "out_for_delivery",
-                 "delivered", "cancelled", "returned"]
+
+        valid = [
+        "processing",
+        "packed",
+        "shipped",
+        "out_for_delivery",
+        "delivered",
+        "cancelled",
+        "returned",
+    ]
+
         if new_status not in valid:
-            return Response({"error": f"Invalid status. Choose: {', '.join(valid)}"}, status=400)
+            return Response(
+            {
+                "error": f"Invalid status. Choose: {', '.join(valid)}"
+            },
+            status=400,
+        )
 
         order = get_object_or_404(Order, id=order_id)
 
-        # Prevent backward transitions (except cancelled/returned)
+    # Prevent moving backwards
         if new_status not in ("cancelled", "returned"):
-            if (order.status in self._ORDER and new_status in self._ORDER
-                    and self._ORDER.index(new_status) < self._ORDER.index(order.status)):
-                return Response({"error": "Cannot move status backward."}, status=400)
+            if (
+            order.status in self._ORDER
+            and new_status in self._ORDER
+            and self._ORDER.index(new_status)
+            < self._ORDER.index(order.status)
+        ):
+                return Response(
+                {"error": "Cannot move status backward."},
+                status=400,
+            )
 
+    # Update order status
         order.status = new_status
         order.save()
-        try:
-            order.tracking.status = new_status
-            order.tracking.save()
-        except Exception:
-            pass
 
-        # Notify customer
+    # Always create/update tracking
+        tracking, created = Track.objects.get_or_create(
+            order=order,
+        defaults={"status": new_status},
+    )
+
+        if not created:
+            tracking.status = new_status
+            tracking.save(update_fields=["status", "updated_at"])
+
+    # Notify customer
         Notification.objects.create(
-            user              = order.user,
-            title             = f"Order #{order.id} — {new_status.replace('_', ' ').title()}",
-            message           = self._MESSAGES.get(new_status, f"Status: {new_status}"),
-            notification_type = "order",
-        )
+            user=order.user,
+            title=f"Order #{order.id} — {new_status.replace('_', ' ').title()}",
+            message=self._MESSAGES.get(
+            new_status,
+            f"Status updated to {new_status}",
+        ),
+        notification_type="order",
+    )
 
-        return Response({
-            "message": "Status updated", "order_id": order.id, "new_status": new_status,
-        })
+        return Response(
+        {
+            "message": "Status updated successfully",
+            "order_id": order.id,
+            "status": order.status,
+            "track_status": tracking.status,
+            "tracking_created": created,
+        }
+    )
 
 class UserInfoView(APIView):
     permission_classes = [IsAuthenticated]
@@ -1902,7 +1938,7 @@ class ReviewViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("You can only delete your own reviews.")
         instance.delete()
 
-    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    @action(detail=False, methods=["get"], url_path="can-review", url_name="can-review",permission_classes=[IsAuthenticated])
     def can_review(self, request):
         """
         GET /api/reviews/can-review/?listing=<id>

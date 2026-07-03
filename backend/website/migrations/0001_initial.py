@@ -179,11 +179,11 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('product', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='wishlisted_by', to='website.product')),
+                ("listing",models.ForeignKey(on_delete=django.db.models.deletion.CASCADE,related_name="wishlisted_by",to="website.productlist",null = True, blank = True)),
                 ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='wishlist', to=settings.AUTH_USER_MODEL)),
             ],
             options={
-                'unique_together': {('user', 'product')},
+                'unique_together': {('user', 'listing')},
             },
         ),
     ]

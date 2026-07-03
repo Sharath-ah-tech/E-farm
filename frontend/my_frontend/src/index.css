@@ -9,10 +9,23 @@ body,
   min-height: 100vh;
   margin: 0;
   padding: 0;
+  overflow-x: hidden; /* prevents any accidental horizontal scroll on small screens */
+}
+
+img, svg, video {
+  max-width: 100%;
+  height: auto;
 }
 
 input,
 textarea,
 select {
   color: inherit;
+  font-size: 16px; /* prevents iOS Safari auto-zoom on focus */
+}
+
+@media (max-width: 480px) {
+  input, textarea, select, button {
+    min-height: 40px; /* keeps tap targets comfortable on small phones */
+  }
 }

@@ -1,20 +1,28 @@
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import api from "../api/axios";
 
+// Every id is normalized to a string before it touches the Set/Map, so
+// "5" and 5 are always the same key — this is the one thing that can
+// make a per-product Set behave like a single shared boolean if it's
+// inconsistent, so we pin it down here once and never again.
+const norm = (id) => String(id);
+
 const WishlistContext = createContext({
   wishlistedIds: new Set(),
-  wishlistMap:   {},          // productId -> wishlistEntryId (needed for DELETE)
+  wishlistMap:   {},
   isWishlisted:  () => false,
   toggleWishlist: async () => {},
   loading: true,
+  refresh: async () => {},
 });
 
 export function WishlistProvider({ children }) {
+  // wishlistedIds: Set<string> of product IDs — the per-product source of truth.
+  // wishlistMap:   { [productId: string]: wishlistEntryId } — needed for DELETE.
   const [wishlistedIds, setWishlistedIds] = useState(new Set());
   const [wishlistMap,   setWishlistMap]   = useState({});
   const [loading,       setLoading]       = useState(true);
 
-  // ── Hydrate on mount / login ────────────────────────────────────────────────
   const hydrate = useCallback(async () => {
     const token = localStorage.getItem("access");
     if (!token) {
@@ -25,14 +33,14 @@ export function WishlistProvider({ children }) {
     }
     setLoading(true);
     try {
-      // Full wishlist entries — needed to know the entry ID for deletion
       const res = await api.get("wishlist/");
       const data = res.data?.results ?? (Array.isArray(res.data) ? res.data : []);
-      const map  = {};
-      const ids  = new Set();
+      const map = {};
+      const ids = new Set();
       data.forEach((w) => {
-        map[w.product] = w.id;
-        ids.add(w.product);
+        const pid = norm(w.product);
+        map[pid] = w.id;
+        ids.add(pid);
       });
       setWishlistMap(map);
       setWishlistedIds(ids);
@@ -51,49 +59,48 @@ export function WishlistProvider({ children }) {
     return () => window.removeEventListener("storage", onStorage);
   }, [hydrate]);
 
+  // Looks up ONE product's own id in the Set — never a shared flag.
   const isWishlisted = useCallback(
-    (productId) => wishlistedIds.has(productId),
+    (productId) => wishlistedIds.has(norm(productId)),
     [wishlistedIds]
   );
 
-  // ── Optimistic toggle ────────────────────────────────────────────────────────
   const toggleWishlist = useCallback(async (productId) => {
-    const currentlyWishlisted = wishlistedIds.has(productId);
+    const pid = norm(productId);
+    const currentlyWishlisted = wishlistedIds.has(pid);
 
-    // 1. Optimistic update — instant UI feedback
+    // Optimistic update — flips ONLY this product's entry in the Set.
     setWishlistedIds((prev) => {
       const next = new Set(prev);
-      currentlyWishlisted ? next.delete(productId) : next.add(productId);
+      currentlyWishlisted ? next.delete(pid) : next.add(pid);
       return next;
     });
 
     try {
       if (currentlyWishlisted) {
-        const entryId = wishlistMap[productId];
+        const entryId = wishlistMap[pid];
         if (entryId) {
           await api.delete(`wishlist/${entryId}/`);
           setWishlistMap((p) => {
             const next = { ...p };
-            delete next[productId];
+            delete next[pid];
             return next;
           });
         }
       } else {
-        const res = await api.post("wishlist/", { product: productId });
-        setWishlistMap((p) => ({ ...p, [productId]: res.data.id }));
+        const res = await api.post("wishlist/", { listing: listingId });
+        setWishlistMap((p) => ({ ...p, [pid]: res.data.id }));
       }
       return true;
     } catch (err) {
-      // 2. Revert on failure
+      // Revert only this product's entry on failure.
       setWishlistedIds((prev) => {
         const next = new Set(prev);
-        currentlyWishlisted ? next.add(productId) : next.delete(productId);
+        currentlyWishlisted ? next.add(pid) : next.delete(pid);
         return next;
       });
-      // Handle "already exists" race condition gracefully
       if (err.response?.status === 400 && !currentlyWishlisted) {
-        // Re-sync from server — it's actually already there
-        hydrate();
+        hydrate(); // already exists server-side — resync instead of guessing
         return true;
       }
       return false;

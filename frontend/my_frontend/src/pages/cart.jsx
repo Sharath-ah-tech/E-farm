@@ -23,23 +23,32 @@ function Cart() {
   };
 
   const handleQty = async (id, qty) => {
-    if (qty < 1) return;
-    setUpdating((p) => ({ ...p, [id]: true }));
-    try {
-      await updateCart(id, qty);
-      setItems((p) =>
-        p.map((i) =>
-          i.id === id
-            ? { ...i, quantity: qty, total_price: qty * parseFloat(i.listing_price || 0) }
-            : i
-        )
-      );
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setUpdating((p) => ({ ...p, [id]: false }));
-    }
-  };
+  if (qty < 1) return;
+
+  setUpdating((p) => ({ ...p, [id]: true }));
+
+  try {
+    const res = await updateCart(id, qty);
+
+console.log("PATCH RESPONSE:", res.data);
+    const updated = res.data;
+
+    setItems((p) =>
+  p.map((i) =>
+    i.id === id
+      ? {
+          ...i,
+          ...updated,
+        }
+      : i
+  )
+);
+  } catch (e) {
+    console.error(e);
+  } finally {
+    setUpdating((p) => ({ ...p, [id]: false }));
+  }
+};
 
   const subtotal = items.reduce(
     (s, i) => s + parseFloat(i.total_price || 0),

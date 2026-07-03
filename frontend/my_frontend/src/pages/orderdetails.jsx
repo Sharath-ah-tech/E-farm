@@ -4,80 +4,11 @@ import { getTheme } from "../utils/theme";
 import api from "../api/axios";
 import { downloadInvoice } from "../api/invoice";
 import { useToast } from "../utils/toast";
+import OrderTimeline from "../components/ordertimeline";
 
-const STEPS = [
-  { key: "pending", label: "Order Placed", icon: "receipt_long" },
-  { key: "processing", label: "Processing", icon: "inventory_2" },
-  { key: "shipped", label: "Shipped", icon: "local_shipping" },
-  { key: "out_for_delivery", label: "Out for Delivery", icon: "delivery_dining" },
-  { key: "delivered", label: "Delivered", icon: "check_circle" },
-];
-
-const STATUS_ORDER = ["pending", "processing", "shipped", "out_for_delivery", "delivered"];
-
-function Timeline({ status }) {
-  const currentIdx =
-    status === "cancelled"
-      ? -1
-      : STATUS_ORDER.indexOf(status);
-
-  if (status === "cancelled") {
-    return (
-      <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
-        <span className="material-symbols-outlined text-2xl text-red-500">cancel</span>
-        <div>
-          <p className="font-semibold text-red-700 dark:text-red-400">Order Cancelled</p>
-          <p className="text-xs text-red-500 dark:text-red-500">This order has been cancelled</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative">
-      {/* Progress line */}
-      <div className="absolute left-5 top-5 bottom-5 w-0.5 bg-gray-200 dark:bg-slate-700" />
-      <div
-        className="absolute left-5 top-5 w-0.5 bg-green-500 transition-all duration-500"
-        style={{
-          height: `${currentIdx >= 0 ? (currentIdx / (STEPS.length - 1)) * 100 : 0}%`,
-        }}
-      />
-
-      <div className="space-y-4">
-        {STEPS.map((step, idx) => {
-          const done = idx <= currentIdx;
-          const current = idx === currentIdx;
-          return (
-            <div key={step.key} className="relative flex items-start gap-4 pl-0">
-              <div
-                className={`relative z-10 w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
-                  done
-                    ? "bg-green-500 text-white shadow-md shadow-green-200 dark:shadow-green-900"
-                    : "bg-gray-100 dark:bg-slate-800 text-gray-400"
-                } ${current ? "ring-4 ring-green-200 dark:ring-green-900" : ""}`}
-              >
-                <span className="material-symbols-outlined text-lg">{step.icon}</span>
-              </div>
-              <div className={`pt-2 ${done ? "" : "opacity-40"}`}>
-                <p className={`text-sm font-semibold ${done ? "text-gray-900 dark:text-white" : "text-gray-400"}`}>
-                  {step.label}
-                </p>
-                {current && (
-                  <p className="text-xs text-green-600 dark:text-green-400 font-medium">Current status</p>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 function InvoiceButton({ orderId, theme }) {
   const [downloading, setDownloading] = useState(false);
   const toast = useToast();
-
   const handleDownload = async () => {
     setDownloading(true);
     try {
@@ -120,12 +51,18 @@ function OrderDetails() {
   const isSuccess = searchParams.get("success") === "1";
 
   useEffect(() => {
-    api
-      .get(`orders/${id}/`)
-      .then((r) => setOrder(r.data))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [id]);
+  api
+    .get(`orders/${id}/`)
+    .then((r) => {
+      console.log("Full order:", r.data);
+      console.log("order.status:", r.data.status);
+      console.log("order.track_status:", r.data.track_status);
+
+      setOrder(r.data);
+    })
+    .catch(console.error)
+    .finally(() => setLoading(false));
+}, [id]);
 
   if (loading) {
     return (
@@ -238,7 +175,7 @@ function OrderDetails() {
               <h2 className="text-base font-bold text-gray-900 dark:text-white mb-5">
                 Order Timeline
               </h2>
-              <Timeline status={order.track_status || order.status} />
+              <OrderTimeline status={order.status} />
             </div>
 
             {/* Shipping Address */}
