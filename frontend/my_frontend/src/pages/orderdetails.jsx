@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { getTheme } from "../utils/theme";
 import api from "../api/axios";
+import { downloadInvoice } from "../api/invoice";
+import { useToast } from "../utils/toast";
 
 const STEPS = [
   { key: "pending", label: "Order Placed", icon: "receipt_long" },
@@ -72,7 +74,42 @@ function Timeline({ status }) {
     </div>
   );
 }
+function InvoiceButton({ orderId, theme }) {
+  const [downloading, setDownloading] = useState(false);
+  const toast = useToast();
 
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const { filename } = await downloadInvoice(orderId);
+      toast.show(`${filename} downloaded successfully!`, "success");
+    } catch (err) {
+      toast.show("Could not download invoice. Please try again.", "error");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleDownload}
+      disabled={downloading}
+      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold ${theme.secondary} ${theme.text} border ${theme.border} hover:shadow transition disabled:opacity-60`}
+    >
+      {downloading ? (
+        <>
+          <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          Preparing…
+        </>
+      ) : (
+        <>
+          <span className="material-symbols-outlined text-base">download</span>
+          Invoice
+        </>
+      )}
+    </button>
+  );
+}
 function OrderDetails() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -149,15 +186,7 @@ function OrderDetails() {
               })}
             </p>
           </div>
-          <a
-            href={`http://127.0.0.1:8000/api/generate-bill/${order.id}/`}
-            target="_blank"
-            rel="noreferrer"
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold ${theme.secondary} ${theme.text} border ${theme.border} hover:shadow transition`}
-          >
-            <span className="material-symbols-outlined text-base">download</span>
-            Invoice
-          </a>
+          <InvoiceButton orderId={order.id} theme={theme} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

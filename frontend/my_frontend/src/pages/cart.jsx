@@ -128,7 +128,7 @@ function Cart() {
                       {item.seller_name}
                     </button>
                   </p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                  <p className="text-xl text-gray-400 dark:text-green-500 tracking-wide font-bold mt-4">
                     ₹{item.listing_price} / {item.units}
                   </p>
 

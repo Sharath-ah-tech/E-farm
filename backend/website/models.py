@@ -5,7 +5,6 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db.models import Avg, Sum
 import random, string
 
-
 class Product(models.Model):
     CATEGORY_CHOICES = [
         ('Pesticide','Pesticide'),('Tools','Tools'),('Vegetables','Vegetables'),

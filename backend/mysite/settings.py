@@ -1,8 +1,18 @@
 
 from pathlib import Path
 from datetime import timedelta
+import os
+from dotenv import load_dotenv
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load .env from frontend
+env_path = BASE_DIR.parent / 'frontend' / 'my_frontend' / '.env'
+if env_path.exists():
+    load_dotenv(env_path)
+else:
+    load_dotenv()
 
 
 # Quick-start development settings - unsuitable for production
@@ -139,19 +149,38 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 import os
+from pathlib import Path
 
-# ── Razorpay ──────────────────────────────────────────────────────────────────
-RAZORPAY_KEY_ID     = os.environ.get("RAZORPAY_KEY_ID",     "rzp_test_xxxx")
-RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "your_secret_here")
+# ── Load .env (install python-decouple or python-dotenv) ────────────────────
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
-# ── Fast2SMS (phone OTP) ──────────────────────────────────────────────────────
-# FAST2SMS_API_KEY = os.environ.get("FAST2SMS_API_KEY", "")
+# ── Razorpay — NEVER hardcode ─────────────────────────────────────────────────
+RAZORPAY_KEY_ID     = os.environ.get("RAZORPAY_KEY_ID", "")
+RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
 
-# ── Email (SMTP) ──────────────────────────────────────────────────────────────
+if not RAZORPAY_KEY_ID or not RAZORPAY_KEY_SECRET:
+    import warnings
+    warnings.warn(
+        "RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET are not set. "
+        "Payments will fail until these are configured in your .env file."
+    )
+
+# ── Google / Facebook OAuth ────────────────────────────────────────────────────
+GOOGLE_CLIENT_ID     = os.environ.get("GOOGLE_CLIENT_ID", "")
+FACEBOOK_APP_SECRET  = os.environ.get("FACEBOOK_APP_SECRET", "")
+
+# ── Fast2SMS ───────────────────────────────────────────────────────────────────
+FAST2SMS_API_KEY = os.environ.get("FAST2SMS_API_KEY", "")
+
+# ── SMTP Email ─────────────────────────────────────────────────────────────────
 EMAIL_BACKEND       = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST          = "smtp.gmail.com"
-EMAIL_PORT          = 587
+EMAIL_HOST          = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT          = int(os.environ.get("EMAIL_PORT", 587))
 EMAIL_USE_TLS       = True
-EMAIL_HOST_USER     = os.environ.get("EMAIL_HOST_USER",     "")
+EMAIL_HOST_USER     = os.environ.get("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
-DEFAULT_FROM_EMAIL  = os.environ.get("EMAIL_HOST_USER",     "noreply@efarm.com")
+DEFAULT_FROM_EMAIL  = os.environ.get("EMAIL_HOST_USER", "noreply@efarm.com")

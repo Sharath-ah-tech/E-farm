@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { getTheme } from "../utils/theme";
 import { getOrders, getCustomerOrders, cancelOrder } from "../api/orders";
+import { downloadInvoice } from "../api/invoice";
+import { useToast } from "../utils/toast";
 
 const STATUS_TABS = [
   { key: "all", label: "All" },
@@ -112,6 +114,8 @@ function PurchaseCard({ order, theme, onCancel, cancelling, navigate }) {
                 ` · ${order.payment_status}`}
             </span>
           )}
+          {/* Inside PurchaseCard's action button row */}
+          <InlineInvoiceButton orderId={order.id} theme={theme} />
         </div>
       </div>
 
@@ -276,7 +280,38 @@ function CustomerOrderCard({ order, theme, navigate }) {
     </div>
   );
 }
+function InlineInvoiceButton({ orderId, theme }) {
+  const [downloading, setDownloading] = useState(false);
+  const toast = useToast();
 
+  const handleClick = async (e) => {
+    e.stopPropagation();
+    setDownloading(true);
+    try {
+      const { filename } = await downloadInvoice(orderId);
+      toast.show(`${filename} downloaded!`, "success");
+    } catch {
+      toast.show("Invoice download failed.", "error");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={downloading}
+      className="px-4 py-2 rounded-xl text-xs font-bold text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-slate-700 hover:shadow transition disabled:opacity-60 flex items-center gap-1"
+    >
+      {downloading ? (
+        <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+      ) : (
+        <span className="material-symbols-outlined text-sm">download</span>
+      )}
+      Invoice
+    </button>
+  );
+}
 /* ── Main Orders Page ── */
 function Orders() {
   const theme = getTheme();

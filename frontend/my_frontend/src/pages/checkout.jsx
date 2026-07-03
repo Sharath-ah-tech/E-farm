@@ -143,103 +143,113 @@ function Checkout() {
 
   // ── Razorpay flow ─────────────────────────────────────────────────────────────
   const handleRazorpay = async () => {
-    if (!validateForm()) return;
-    setPlacing(true);
-    setError("");
+  if (!validateForm()) return;
+  setPlacing(true);
+  setError("");
 
-    try {
-      // 1. Load Razorpay script
-      const loaded = await loadRazorpayScript();
-      if (!loaded) {
-        setError("Could not load Razorpay. Check your internet connection.");
-        setPlacing(false);
-        return;
-      }
-
-      // 2. Create Razorpay order on backend
-      const orderRes = await createRazorpayOrder();
-      const {
-        razorpay_order_id,
-        amount,
-        currency,
-        key,
-        name,
-        description,
-        prefill_name,
-        prefill_email,
-        prefill_contact,
-      } = orderRes.data;
-
-      // 3. Open Razorpay modal
-      const options = {
-        key,
-        amount,
-        currency,
-        name,
-        description,
-        order_id: razorpay_order_id,
-        theme:    { color: "#059669" },
-
-        prefill: {
-          name:    prefill_name  || username,
-          email:   prefill_email || "",
-          contact: form.phone    || prefill_contact || "",
-        },
-
-        notes: {
-          address: form.address,
-          city:    form.city,
-          state:   form.state,
-        },
-
-        // ── Payment success handler ────────────────────────────────────────────
-        handler: async (response) => {
-          try {
-            const verifyRes = await verifyRazorpayPayment({
-              razorpay_order_id:   response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature:  response.razorpay_signature,
-              shipping_address:    form,
-            });
-            toast.show("Payment successful! Order confirmed.", "success");
-            navigate(`/orders/${verifyRes.data.order_id}?success=1`);
-          } catch (verErr) {
-            setError(
-              verErr.response?.data?.error ||
-              "Payment verification failed. Contact support if you were charged."
-            );
-            setPlacing(false);
-          }
-        },
-
-        // ── Payment failure handler ────────────────────────────────────────────
-        modal: {
-          ondismiss: () => {
-            toast.show("Payment cancelled. Your cart is saved.", "info");
-            setPlacing(false);
-          },
-        },
-      };
-
-      const rzp = new window.Razorpay(options);
-
-      rzp.on("payment.failed", async (response) => {
-        const desc = response.error?.description || "Payment failed";
-        await reportRazorpayFailed({
-          error_description: desc,
-          razorpay_order_id,
-        }).catch(() => {});
-        setError(`Payment failed: ${desc}. Please try again.`);
-        setPlacing(false);
-      });
-
-      rzp.open();
-
-    } catch (err) {
-      setError(err.response?.data?.error || "Could not initiate payment. Please try again.");
+  try {
+    const loaded = await loadRazorpayScript();
+    if (!loaded) {
+      setError("Could not load Razorpay checkout. Check your internet connection.");
       setPlacing(false);
+      return;
     }
-  };
+
+    let orderRes;
+    try {
+      orderRes = await createRazorpayOrder();
+    } catch (createErr) {
+      // ← Surfaces backend's clear "keys not configured / auth failed" message
+      const msg =
+        createErr.response?.data?.error ||
+        "Could not initiate payment. The payment gateway may be misconfigured.";
+      setError(msg);
+      setPlacing(false);
+      return;
+    }
+
+    const {
+      razorpay_order_id, amount, currency, key,
+      name, description, prefill_name, prefill_email, prefill_contact,
+    } = orderRes.data;
+
+    if (!key || !razorpay_order_id) {
+      setError("Payment gateway returned incomplete data. Please contact support.");
+      setPlacing(false);
+      return;
+    }
+
+    const options = {
+      key,                 // ← always fresh from backend response, never cached
+      amount,
+      currency,
+      name,
+      description,
+      order_id: razorpay_order_id,
+      theme: { color: "#059669" },
+      prefill: {
+        name:    prefill_name  || username,
+        email:   prefill_email || "",
+        contact: form.phone    || prefill_contact || "",
+      },
+      notes: { address: form.address, city: form.city, state: form.state },
+
+      handler: async (response) => {
+        try {
+          const verifyRes = await verifyRazorpayPayment({
+            razorpay_order_id:   response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature:  response.razorpay_signature,
+            shipping_address:    form,
+          });
+          toast.show("Payment successful! Order confirmed.", "success");
+          navigate(`/orders/${verifyRes.data.order_id}?success=1`);
+        } catch (verErr) {
+          setError(
+            verErr.response?.data?.error ||
+            "Payment was processed but verification failed. " +
+            "Contact support with your payment ID if you were charged."
+          );
+          setPlacing(false);
+        }
+      },
+
+      modal: {
+        ondismiss: () => {
+          toast.show("Payment window closed. Your cart is saved.", "info");
+          setPlacing(false);
+        },
+      },
+    };
+
+    const rzp = new window.Razorpay(options);
+
+    // ← Surfaces Razorpay's own failure reason (e.g. card declined, auth failed)
+    rzp.on("payment.failed", async (response) => {
+      const desc = response.error?.description || "Payment failed";
+      const reason = response.error?.reason || "";
+      await reportRazorpayFailed({
+        error_description: desc,
+        razorpay_order_id,
+      }).catch(() => {});
+      setError(
+        reason === "international_transaction_not_allowed"
+          ? "International cards are not supported. Please use an Indian payment method."
+          : `Payment failed: ${desc}. Please try again or use a different method.`
+      );
+      setPlacing(false);
+    });
+
+    rzp.open();
+
+  } catch (err) {
+    setError(
+      err.response?.data?.error ||
+      "Could not initiate payment. Please try again or use Cash on Delivery."
+    );
+    setPlacing(false);
+  }
+};
 
   const handlePlace = () => {
     if (paymentType === "razorpay") return handleRazorpay();

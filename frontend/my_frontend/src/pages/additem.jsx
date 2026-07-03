@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getTheme } from "../utils/theme";
-import { getMediaUrl } from "../utils/media";
+// import { getMediaUrl } from "../utils/media";
 import { addNotification } from "../utils/notification";
 import {
   addProduct,
@@ -56,7 +56,7 @@ function AddItem() {
 
   // ── Tab 3: Listing Discount ───────────────────────────────────────────────
   const [myListings, setMyListings] = useState([]);
-  const [dLoading, setDLoading] = useState(false);
+  // const [dLoading, setDLoading] = useState(false);
 
   // Fetch all parent products for the listing dropdown
   useEffect(() => {
@@ -70,7 +70,7 @@ function AddItem() {
         .then((r) => setMyListings(r.data))
         .catch(console.error);
     }
-  }, [activeTab]);
+  }, [activeTab, allProducts.length, myListings.length]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -357,7 +357,7 @@ function AddItem() {
                         <input
                           type="number"
                           min="0"
-                          step="0.01"
+                          step="2.5"
                           placeholder="e.g. 50.00"
                           value={lPrice}
                           onChange={(e) => setLPrice(e.target.value)}

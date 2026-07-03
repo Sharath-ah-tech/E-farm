@@ -1934,3 +1934,109 @@ class ReviewViewSet(viewsets.ModelViewSet):
             "already_reviewed": already_reviewed,
             "reason":           reason,
         })
+    
+# ─── Replace RazorpayCreateOrderView with this hardened version ──────────────
+
+class RazorpayCreateOrderView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # ── Fail fast with a clear message if keys are missing ────────────────
+        key_id     = getattr(settings, "RAZORPAY_KEY_ID", "")
+        key_secret = getattr(settings, "RAZORPAY_KEY_SECRET", "")
+
+        if not key_id or not key_secret:
+            return Response(
+                {
+                    "error": (
+                        "Payment gateway is not configured. "
+                        "RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET missing on server."
+                    )
+                },
+                status=500,
+            )
+
+        try:
+            import razorpay
+        except ImportError:
+            return Response(
+                {"error": "Razorpay SDK not installed. Run: pip install razorpay"},
+                status=500,
+            )
+
+        cart_items = Cart.objects.filter(
+            user=request.user
+        ).select_related("listing")
+
+        if not cart_items.exists():
+            return Response({"error": "Cart is empty"}, status=400)
+
+        total_inr    = sum(
+            float(item.listing.final_price) * item.quantity
+            for item in cart_items
+        )
+        if total_inr <= 0:
+            return Response({"error": "Invalid cart total"}, status=400)
+
+        amount_paise = int(round(total_inr * 100))
+
+        try:
+            client    = razorpay.Client(auth=(key_id, key_secret))
+            rzp_order = client.order.create({
+                "amount":          amount_paise,
+                "currency":        "INR",
+                "receipt":         f"efarm_{request.user.id}_{int(timezone.now().timestamp())}",
+                "payment_capture": 1,
+            })
+        except razorpay.errors.BadRequestError as exc:
+            return Response(
+                {"error": f"Razorpay rejected the request: {str(exc)}"},
+                status=400,
+            )
+        except Exception as exc:
+            # Catches "Authentication failed" from a bad key pair
+            return Response(
+                {
+                    "error": (
+                        "Could not connect to Razorpay. This usually means the "
+                        "RAZORPAY_KEY_ID/SECRET pair is invalid or mismatched "
+                        f"(test vs live keys). Detail: {str(exc)}"
+                    )
+                },
+                status=500,
+            )
+
+        try:
+            phone = request.user.profile.phone or ""
+        except Exception:
+            phone = ""
+
+        return Response({
+            "razorpay_order_id": rzp_order["id"],
+            "amount":            amount_paise,
+            "currency":          "INR",
+            "key":               key_id,   # ← always the live server value, never stale
+            "name":              "E-Farm Marketplace",
+            "description":       "Fresh farm produce, direct from growers",
+            "prefill_name":      request.user.get_full_name() or request.user.username,
+            "prefill_email":     request.user.email,
+            "prefill_contact":   phone,
+        })
+
+
+# ─── NEW: Bulk wishlist status check ──────────────────────────────────────────
+
+class WishlistStatusView(APIView):
+    """
+    GET /api/wishlist-status/
+    Returns the set of product IDs the user has wishlisted —
+    used by the frontend to hydrate wishlist state on every page load.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        product_ids = list(
+            Wishlist.objects.filter(user=request.user)
+            .values_list("product_id", flat=True)
+        )
+        return Response({"wishlisted_ids": product_ids})

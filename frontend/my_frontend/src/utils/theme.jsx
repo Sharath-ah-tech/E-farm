@@ -2,7 +2,7 @@ export const themes = {
   farmer: {
     page: "bg-emerald-50 dark:bg-slate-950",
     card: "bg-white dark:bg-slate-900",
-    border: "border-slate-200 dark:border-slate-700",
+    border: "border-slate-200 dark:border-emerald-700",
     primary: "bg-emerald-600 hover:bg-emerald-700",
     secondary: "bg-emerald-100 dark:bg-slate-800",
     text: "text-emerald-700 dark:text-emerald-400",

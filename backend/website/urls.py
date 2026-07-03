@@ -1,6 +1,5 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-
 from .views import (
     RegisterView, LoginView, LogoutView, SelectedView,
     ProductViewSet, ProductListViewSet, UserDetailViewSet,
@@ -20,7 +19,7 @@ from .views import (
     PasswordResetRequestView, PasswordResetVerifyView, PasswordResetConfirmView,
     # ── NEW ──
     RazorpayCreateOrderView, RazorpayVerifyView, RazorpayFailedView,
-    PhoneOTPRequestView,
+    PhoneOTPRequestView,WishlistStatusView
 )
 
 router = DefaultRouter()
@@ -99,4 +98,5 @@ urlpatterns = [
     path("dashboard/sales-chart/",           SalesChartView.as_view()),
     path("dashboard/category-distribution/", CategoryDistributionView.as_view()),
     path("dashboard/low-stock/",             LowStockView.as_view()),
+    path("wishlist-status/", WishlistStatusView.as_view(), name="wishlist-status"),
 ]
