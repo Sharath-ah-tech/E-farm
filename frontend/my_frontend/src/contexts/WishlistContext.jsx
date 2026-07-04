@@ -38,9 +38,9 @@ export function WishlistProvider({ children }) {
       const map = {};
       const ids = new Set();
       data.forEach((w) => {
-        const pid = norm(w.product);
-        map[pid] = w.id;
-        ids.add(pid);
+        const lid = norm(w.listing);
+        map[lid] = w.id;
+        ids.add(lid);
       });
       setWishlistMap(map);
       setWishlistedIds(ids);
@@ -61,42 +61,42 @@ export function WishlistProvider({ children }) {
 
   // Looks up ONE product's own id in the Set — never a shared flag.
   const isWishlisted = useCallback(
-    (productId) => wishlistedIds.has(norm(productId)),
+    (listingId) => wishlistedIds.has(norm(listingId)),
     [wishlistedIds]
   );
 
-  const toggleWishlist = useCallback(async (productId) => {
-    const pid = norm(productId);
-    const currentlyWishlisted = wishlistedIds.has(pid);
+  const toggleWishlist = useCallback(async (listingId) => {
+    const lid = norm(listingId);
+    const currentlyWishlisted = wishlistedIds.has(lid);
 
     // Optimistic update — flips ONLY this product's entry in the Set.
     setWishlistedIds((prev) => {
       const next = new Set(prev);
-      currentlyWishlisted ? next.delete(pid) : next.add(pid);
+      currentlyWishlisted ? next.delete(lid) : next.add(lid);
       return next;
     });
 
     try {
       if (currentlyWishlisted) {
-        const entryId = wishlistMap[pid];
+        const entryId = wishlistMap[lid];
         if (entryId) {
           await api.delete(`wishlist/${entryId}/`);
           setWishlistMap((p) => {
             const next = { ...p };
-            delete next[pid];
+            delete next[lid];
             return next;
           });
         }
       } else {
         const res = await api.post("wishlist/", { listing: listingId });
-        setWishlistMap((p) => ({ ...p, [pid]: res.data.id }));
+        setWishlistMap((p) => ({ ...p, [lid]: res.data.id }));
       }
       return true;
     } catch (err) {
       // Revert only this product's entry on failure.
       setWishlistedIds((prev) => {
         const next = new Set(prev);
-        currentlyWishlisted ? next.add(pid) : next.delete(pid);
+        currentlyWishlisted ? next.add(lid) : next.delete(lid);
         return next;
       });
       if (err.response?.status === 400 && !currentlyWishlisted) {

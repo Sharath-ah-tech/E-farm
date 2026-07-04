@@ -64,14 +64,13 @@ function SellerCard({ listing, theme, onAddToCart, onBuyNow, adding, added }) {
   const { isWishlisted, toggleWishlist } = useWishlist();
   const [wlBusy, setWlBusy] = useState(false);
   const inStock = listing.stock > 0;
-  console.log(listing.product)
   // Per-product lookup — listing.product is THIS listing's product id only.
-  const wishlisted = isWishlisted(listing.product);
+  const wishlisted = isWishlisted(listing.id);
 
   const handleWishlist = async () => {
     if (wlBusy) return;
     setWlBusy(true);
-    await toggleWishlist(listing.product);
+    await toggleWishlist(listing.id);
     setWlBusy(false);
   };
 

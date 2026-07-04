@@ -24,7 +24,7 @@ function Wishlist() {
   };
 
   const handleAddToCart = async (wishlistItem) => {
-    const listingId = wishlistItem.cheapest_listing_id;
+    const listingId = wishlistItem.listing_id;
     if (!listingId) return;
     setCarting((p) => ({ ...p, [wishlistItem.id]: true }));
     try {
@@ -32,7 +32,7 @@ function Wishlist() {
       setCarted((p) => ({ ...p, [wishlistItem.id]: true }));
       setTimeout(
         () => setCarted((p) => ({ ...p, [wishlistItem.id]: false })),
-        2500
+        2500,
       );
     } catch (e) {
       console.error(e);
@@ -46,7 +46,10 @@ function Wishlist() {
       <div className={`${theme.page} min-h-screen`}>
         <div className="max-w-5xl mx-auto px-4 pt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {[...Array(8)].map((_, i) => (
-            <div key={i} className="h-64 rounded-2xl bg-gray-200 dark:bg-slate-800 animate-pulse" />
+            <div
+              key={i}
+              className="h-64 rounded-2xl bg-gray-200 dark:bg-slate-800 animate-pulse"
+            />
           ))}
         </div>
       </div>
@@ -95,7 +98,7 @@ function Wishlist() {
                 onBuyNow={() => {
                   handleAddToCart(item).then(() => navigate("/cart"));
                 }}
-                onView={() => navigate(`/productdetail/${item.product}`)}
+                onView={() => navigate(`/productdetail/${item.listing_id}`)}
                 carting={carting[item.id]}
                 carted={carted[item.id]}
               />
@@ -107,8 +110,17 @@ function Wishlist() {
   );
 }
 
-function WishlistCard({ item, theme, onRemove, onAddToCart, onBuyNow, onView, carting, carted }) {
-  const inStock = item.seller_count > 0 && Number(item.lowest_price) > 0;
+function WishlistCard({
+  item,
+  theme,
+  onRemove,
+  onAddToCart,
+  onBuyNow,
+  onView,
+  carting,
+  carted,
+}) {
+  const inStock = item.stock > 0;
 
   return (
     <div
@@ -120,7 +132,9 @@ function WishlistCard({ item, theme, onRemove, onAddToCart, onBuyNow, onView, ca
           src={item.product_image || "/vite.svg"}
           alt={item.product_name}
           className="h-full w-full object-contain p-3"
-          onError={(e) => { e.target.src = "/vite.svg"; }}
+          onError={(e) => {
+            e.target.src = "/vite.svg";
+          }}
         />
         {!inStock && (
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -139,7 +153,9 @@ function WishlistCard({ item, theme, onRemove, onAddToCart, onBuyNow, onView, ca
 
       {/* Info */}
       <div className="p-4 flex flex-col flex-1">
-        <span className={`text-[10px] font-bold uppercase tracking-wider ${theme.text}`}>
+        <span
+          className={`text-[10px] font-bold uppercase tracking-wider ${theme.text}`}
+        >
           {item.product_category}
         </span>
         <h3
@@ -149,7 +165,7 @@ function WishlistCard({ item, theme, onRemove, onAddToCart, onBuyNow, onView, ca
           {item.product_name}
         </h3>
 
-        <div className="flex items-center gap-1 mt-1">
+        {/* <div className="flex items-center gap-1 mt-1">
           <span className="text-yellow-400 text-sm">
             {"★".repeat(Math.round(item.average_rating || 0))}
             <span className="text-gray-300 dark:text-gray-700">
@@ -159,16 +175,25 @@ function WishlistCard({ item, theme, onRemove, onAddToCart, onBuyNow, onView, ca
           <span className="text-xs text-gray-400 dark:text-gray-500">
             {Number(item.average_rating || 0).toFixed(1)}
           </span>
-        </div>
+        </div> */}
 
         <div className="mt-1.5">
           <span className="text-base font-bold text-gray-900 dark:text-white">
-            ₹{item.lowest_price}
+            ₹{item.price}
           </span>
-          <span className="text-xs text-gray-400 dark:text-gray-500 ml-1">onwards</span>
+          <span className="text-xs text-gray-400 dark:text-gray-500 ml-1">
+            per items
+          </span>
         </div>
         <p className="text-xs text-gray-400 dark:text-gray-500">
-          {item.seller_count} seller{item.seller_count !== 1 ? "s" : ""}
+          Seller: {item.seller_name}
+        </p>
+        <p
+          className={`text-xs mt-1 ${
+            item.stock > 0 ? "text-green-600" : "text-red-500"
+          }`}
+        >
+          {item.stock > 0 ? `${item.stock} in stock` : "Out of Stock"}
         </p>
 
         {/* Buttons */}
@@ -180,8 +205,8 @@ function WishlistCard({ item, theme, onRemove, onAddToCart, onBuyNow, onView, ca
               carted
                 ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-300"
                 : inStock
-                ? `border-current ${theme.text} ${theme.secondary} hover:shadow`
-                : "border-gray-200 dark:border-slate-700 text-gray-300 cursor-not-allowed"
+                  ? `border-current ${theme.text} ${theme.secondary} hover:shadow`
+                  : "border-gray-200 dark:border-slate-700 text-gray-300 cursor-not-allowed"
             }`}
           >
             {carting ? (
