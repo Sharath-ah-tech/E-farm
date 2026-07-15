@@ -16,11 +16,19 @@ class Product(models.Model):
 
     @property
     def seller_count(self):
-        return self.listings.count()
+        return self.listings.count() 
+    
+    #count the number of listings from productList(listings comes from related_name)
+    #property is used to reduce the reusage, instead of typing same line again again we can use property
 
     @property
     def lowest_price(self):
         listing = self.listings.filter(stock__gt=0).order_by("price").first()
+
+        # If the listing is null it will show error message, 
+        # so that we check whether the listing is empty or not,if it is empty it shows Null.
+        #final_price comes from another property in somewhere
+
         if not listing:
             listing = self.listings.order_by("price").first()
         return listing.final_price if listing else 0
@@ -32,15 +40,22 @@ class Product(models.Model):
     @property
     def has_stock(self):
         return self.listings.filter(stock__gt=0).exists()
+    #exists checks whether atleast 1 listing is there greater than 0.
 
     @property
     def average_rating(self):
         ratings = []
         for listing in self.listings.all():
+
+            #ratings.extend is adding all the looping ratings inside the ratings array
+            #values_list is taking the values onlt=y from the reviews, suppose the reviews looks like A farmer : 4.0, it takes only 4.0
+            # and values_list return in tuples [(4.0,)] so we used flat = tru, which removes the tuple
+
             ratings.extend(listing.reviews.values_list("rating", flat=True))
         if not ratings:
             return 0
         return round(sum(ratings) / len(ratings), 1)
+    #1 is for placing 1 decimal field after the dot
 
     @property
     def review_count(self):
@@ -94,6 +109,7 @@ class ProductList(models.Model):
 
     class Meta:
         unique_together = ("seller", "product")
+        #orders in ascending order product - model name; name - inside the product model
         ordering = ['product__name']
 
     def __str__(self):
@@ -132,6 +148,8 @@ class Cart(models.Model):
         return self.quantity * self.listing.final_price
 
     class Meta:
+        # unique_together is used for the user can only add one thing from the listing, 
+        # if the user try to add same listing twice it doesn't allow to create
         unique_together = ("user", "listing")
         verbose_name_plural = "Carts"
 

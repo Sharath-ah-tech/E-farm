@@ -7,7 +7,9 @@ from .models import (
     OrderItem,
     Payment,
     Track,
-    ShippingAddress
+    ShippingAddress, 
+    Discount,
+    PasswordResetOTP
 )
 
 admin.site.register(Product)
@@ -18,3 +20,5 @@ admin.site.register(OrderItem)
 admin.site.register(Payment)
 admin.site.register(Track)
 admin.site.register(ShippingAddress)
+admin.site.register(Discount)
+admin.site.register(PasswordResetOTP)

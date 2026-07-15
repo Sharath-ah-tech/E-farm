@@ -59,6 +59,9 @@ class ProductSerializer(ModelSerializer):
     def get_image_url(self, obj):
         request = self.context.get("request")
         if obj.image and request:
+            #build_absolute_uri: converts it into a complete URL, 
+            # So this method makes the image URL complete for the frontend.
+            #obj is a variable if the image is from prodcut it changes to product.image
             return request.build_absolute_uri(obj.image.url)
         return None
 
