@@ -24,7 +24,7 @@ SECRET_KEY = 'django-insecure-q$^(latr(%)6b=$q3u5^a_u!xaj7jt#7%z=$7#a%^330i=3b^7
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['e-farm-production.up.railway.app', 'localhost', '127.0.0.1']
 
 
 # Application definition
@@ -57,13 +57,17 @@ MIDDLEWARE = [
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
+    "http://localhost:5174",
     "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
 ]
 CORS_ALLOW_CREDENTIALS = True
     
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
+    "http://localhost:5174",
     "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
 ]
 
 ROOT_URLCONF = 'mysite.urls'
