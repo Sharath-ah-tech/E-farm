@@ -2,7 +2,7 @@ import "./App.css";
 import { useState, useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
 
-import ProfileSetup from "./pages/ProfileSetup";
+import ProfileSetup from "./pages/profileSetup";
 import Home from "./pages/home";
 import Login from "./pages/login";
 import Register from "./pages/register";
