@@ -68,6 +68,11 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5174",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:5174",
+    "https://e-farm-pi.vercel.app",
+]
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://e-farm-.*-sharath8\.vercel\.app$",
 ]
 CORS_ALLOW_CREDENTIALS = True
 
