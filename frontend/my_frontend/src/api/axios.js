@@ -1,8 +1,7 @@
 import axios from "axios";
 
-// ─── Base instance ────────────────────────────────────────────────────────────
 const api = axios.create({
-  baseURL: "http://127.0.0.1:8000/api/",   // adjust if your backend runs elsewhere
+  baseURL: import.meta.env.VITE_API_URL,
 });
 
 // ─── Request interceptor — stamp every request with the access token ──────────
@@ -41,9 +40,9 @@ api.interceptors.response.use(
         // Call the SimpleJWT refresh endpoint directly (not through `api`,
         // so a 401 here doesn't re-trigger this interceptor)
         const { data } = await axios.post(
-          "http://127.0.0.1:8000/api/token/refresh/",
-          { refresh }
-        );
+        `${import.meta.env.VITE_API_URL}token/refresh/`,
+        { refresh }
+            );
 
         // Persist the new access token
         localStorage.setItem("access", data.access);
