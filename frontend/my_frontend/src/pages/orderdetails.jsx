@@ -4,7 +4,7 @@ import { getTheme } from "../utils/theme";
 import api from "../api/axios";
 import { downloadInvoice } from "../api/invoice";
 import { useToast } from "../utils/toast";
-import OrderTimeline from "../components/ordertimeline";
+import OrderTimeline from "../components/OrderTimeline";
 
 function InvoiceButton({ orderId, theme }) {
   const [downloading, setDownloading] = useState(false);
